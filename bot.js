@@ -25,6 +25,24 @@ Array.prototype.remove = function (value) {
 };
 
 client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+  const optOut = await fetchJson("data/optOut.json", []);
+  // Let people opt out of the bot
+  if (message.content == "opt-presencify") {
+    if (optOut.includes(message.author.id)) {
+      optOut.remove(message.author.id);
+      await message.reply("You have opted in to the bot.");
+    } else {
+      optOut.push(message.author.id);
+      await message.reply(
+        "You have opted out of the bot.\n" +
+          "Please consider opting in again if you change your mind (just run the command again). " +
+          "After all, Presencify is [open source](https://github.com/KTibow/Presencify) and it collects a relatively small amount of data."
+      );
+    }
+    await fs.writeFile("data/optOut.json", JSON.stringify(optOut));
+  }
+  if (optOut.includes(message.author.id)) return;
   // Update anything currently tracking
   const currentlyTracking = await fetchJson("data/tracking.json", []);
   const usersData = await fetchJson("data/users.json", {});
@@ -53,6 +71,7 @@ client.on("messageCreate", async (message) => {
     mentions.push(message.mentions.repliedUser);
   }
   mentions.forEach((mention) => {
+    if (optOut.includes(mention.id)) return;
     // Check if the user is already being tracked
     if (currentlyTracking.find((trackData) => trackData.id == mention.id)) return;
     // Fetch info about the mentioned user
@@ -78,6 +97,7 @@ client.on("messageCreate", async (message) => {
   await fs.writeFile("data/users.json", JSON.stringify(usersData));
   await fs.writeFile("data/tracking.json", JSON.stringify(currentlyTracking));
   await fs.writeFile("data/lastMessages.json", JSON.stringify(lastMessages));
+  await fs.writeFile("data/optOut.json", JSON.stringify(optOut));
 });
 /*const calculateIfLikelyOnline = async (user) => {
   const userDataList = await fetchJson("data/users.json", {});
