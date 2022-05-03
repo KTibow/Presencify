@@ -1,6 +1,5 @@
 import { Client, Intents, PresenceManager } from "discord.js";
 import fs from "fs/promises";
-import tokens from "./config.json" assert { type: "json" };
 const client = new Client({
   intents: [
     Intents.FLAGS.GUILDS,
@@ -80,7 +79,8 @@ client.on("messageCreate", async (message) => {
       .members.cache.get(mention.id);
     const userData = {
       presence: guildMemberMentioned.presence.status,
-      lastMessage: lastMessages[mention.id] || -1,
+      sinceLastMessage:
+        lastMessages[mention.id] && new Date() - lastMessages[mention.id],
       utcHour: new Date().getUTCHours(),
       utcDay: new Date().getUTCDay(),
     };
@@ -105,4 +105,4 @@ client.on("messageCreate", async (message) => {
   if (!user) return;
 };*/
 console.log("loaded");
-client.login(tokens.botToken);
+client.login();
