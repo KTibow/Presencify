@@ -31,7 +31,7 @@ client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   const optOut = await fetchJson("data/optOut.json", []);
   // Let people opt out of the bot
-  if (message.content == "opt-presencify") {
+  if (message.content == "p.opt") {
     if (optOut.includes(message.author.id)) {
       optOut.remove(message.author.id);
       await message.reply("You have opted in to the bot.");
@@ -45,22 +45,32 @@ client.on("messageCreate", async (message) => {
     }
     await fs.writeFile("data/optOut.json", JSON.stringify(optOut));
   }
+  if (message.content == "opt-presencify") {
+    message.reply("it's p.opt now");
+  }
   if (optOut.includes(message.author.id)) return;
   const usersData = await fetchJson("data/users.json", {});
   if (!usersData[message.author.id]) {
     usersData[message.author.id] = { messageTimes: [] };
   }
   usersData[message.author.id].messageTimes.push(message.createdAt.getTime());
-  if (message.content == "graph-presencify") {
+  if (message.content.startsWith("p.graph")) {
+    const id = message.content.match(/[0-9]+/g)?.at(0) || message.author.id;
     await message.reply({
       files: [
         {
-          attachment: await graphMessageTimes(message.author, usersData[message.author.id]),
+          attachment: await graphMessageTimes(
+            client.users.cache.get(id) || { id, username: "somebody" },
+            usersData[id]
+          ),
           name: "messageTimes.png",
           contentType: "image/png",
         },
       ],
     });
+  }
+  if (message.content.startsWith("graph-presencify")) {
+    await message.reply("it's p.graph now (plus you can specify a user id if you want)");
   }
   for (const [id, user] of message.mentions.users) {
     const userData = usersData[id];
@@ -72,7 +82,7 @@ client.on("messageCreate", async (message) => {
     let messageCountForHour = userData.messageTimes.filter(
       (t) => new Date(t).getUTCHours() == currentHour
     ).length;
-    if (messageCountForHour < totalMessageCount / 2) {
+    if (messageCountForHour < totalMessageCount / 24) {
       await message.reply({
         content: `${user.username} usually doesn't talk (${messageCountForHour}/${totalMessageCount} times) in this hour.`,
         files: [
