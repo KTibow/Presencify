@@ -79,12 +79,17 @@ client.on("messageCreate", async (message) => {
     const totalMessageCount = userData.messageTimes.length;
     if (totalMessageCount < 24 * 16) continue;
     const currentHour = new Date().getUTCHours();
-    let messageCountForHour = userData.messageTimes.filter(
+    const messageCountForHour = userData.messageTimes.filter(
       (t) => new Date(t).getUTCHours() == currentHour
     ).length;
+    const minutesSinceLastMessage = Math.floor(
+      (new Date() - new Date(userData.messageTimes.at(-1))) / 60000
+    );
     if (messageCountForHour < totalMessageCount / 48) {
       await message.reply({
-        content: `${user.username} usually doesn't talk (${messageCountForHour}/${totalMessageCount} times) in this hour.`,
+        content:
+          `${user.username} usually doesn't talk in this hour. ` +
+          `(${totalMessageCount} total messages, ${messageCountForHour} total for this hour, ${minutesSinceLastMessage} minutes since last message)`,
         files: [
           {
             attachment: await graphMessageTimes(user, userData),
