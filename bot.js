@@ -51,6 +51,17 @@ client.on("messageCreate", async (message) => {
     usersData[message.author.id] = { messageTimes: [] };
   }
   usersData[message.author.id].messageTimes.push(message.createdAt.getTime());
+  if (message.content == "graph-presencify") {
+    await message.reply({
+      files: [
+        {
+          attachment: await graphMessageTimes(message.author, usersData[message.author.id]),
+          name: "messageTimes.png",
+          contentType: "image/png",
+        },
+      ],
+    });
+  }
   for (const [id, user] of message.mentions.users) {
     const userData = usersData[id];
     if (!userData) continue;
