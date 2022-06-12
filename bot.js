@@ -1,9 +1,9 @@
 import canvasPkg from "canvas";
-const { createCanvas } = canvasPkg;
+const { createCanvas, registerFont } = canvasPkg;
 import chartPkg from "chart.js";
 const { Chart } = chartPkg;
-import { Client, Intents, MessageAttachment, PresenceManager } from "discord.js";
-import fs, { writeFile } from "fs/promises";
+import { Client, Intents } from "discord.js";
+import fs from "fs/promises";
 const client = new Client({
   intents: [
     Intents.FLAGS.GUILDS,
@@ -159,5 +159,8 @@ const graphMessageTimes = async (user, userData) => {
   const buffer = graphSpace.toBuffer("image/png");
   return buffer;
 };
+if (process.env.FONT_PATH) {
+  registerFont(process.env.FONT_PATH, { family: "Roboto" });
+}
 console.log("loaded");
 client.login();
