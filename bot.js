@@ -127,6 +127,9 @@ client.on("messageCreate", async (message) => {
             contentType: "image/png",
           },
         ],
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
       cooldowns[id] = Date.now();
     }
