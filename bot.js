@@ -101,6 +101,7 @@ client.on("messageCreate", async (message) => {
     const relevantMessages = userData.messageTimes.filter(
       (t) => [0, 6].includes(new Date(t).getDay()) == isWeekend
     );
+    if (relevantMessages.length < 48 * 4) continue;
     const messageCountForHour = relevantMessages.filter(
       (t) => new Date(t).getUTCHours() == currentHour
     ).length;
