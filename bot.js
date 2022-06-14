@@ -45,7 +45,6 @@ client.on("messageCreate", async (message) => {
     }
     await fs.writeFile("data/optOut.json", JSON.stringify(optOut));
   }
-  if (optOut.includes(message.author.id)) return;
 
   const usersData = await fetchJson("data/users.json", {});
   if (!usersData[message.author.id]) {
@@ -91,6 +90,7 @@ client.on("messageCreate", async (message) => {
   if (message.content == "opt-presencify") {
     await message.reply("it's p.opt now");
   }
+  if (optOut.includes(message.author.id)) return;
   for (const [id, user] of message.mentions.users) {
     if (cooldowns[id] + 60 * 1000 > Date.now()) continue;
     if (optOut.includes(id)) continue;
