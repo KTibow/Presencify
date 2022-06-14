@@ -93,6 +93,7 @@ client.on("messageCreate", async (message) => {
   }
   for (const [id, user] of message.mentions.users) {
     if (cooldowns[id] + 60 * 1000 > Date.now()) continue;
+    if (optOut.includes(id)) continue;
     const userData = usersData[id];
     if (!userData) continue;
     const currentHour = new Date().getUTCHours();
