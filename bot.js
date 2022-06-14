@@ -54,6 +54,7 @@ client.on("messageCreate", async (message) => {
   const isWeekend = [0, 6].includes(new Date().getUTCDay());
   if (message.content.startsWith("p.graph")) {
     const id = message.content.match(/[0-9]+/g)?.at(0) || message.author.id;
+    await message.channel.sendTyping();
     await message.reply({
       content: "overall, weekends, weekdays",
       files: [
