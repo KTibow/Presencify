@@ -45,25 +45,41 @@ client.on("messageCreate", async (message) => {
     }
     await fs.writeFile("data/optOut.json", JSON.stringify(optOut));
   }
-  if (message.content == "opt-presencify") {
-    message.reply("it's p.opt now");
-  }
   if (optOut.includes(message.author.id)) return;
+
   const usersData = await fetchJson("data/users.json", {});
   if (!usersData[message.author.id]) {
     usersData[message.author.id] = { messageTimes: [] };
   }
   usersData[message.author.id].messageTimes.push(message.createdAt.getTime());
+  const isWeekend = [0, 6].includes(new Date().getUTCDay());
   if (message.content.startsWith("p.graph")) {
     const id = message.content.match(/[0-9]+/g)?.at(0) || message.author.id;
     await message.reply({
+      content: "overall, weekends, weekdays",
       files: [
         {
           attachment: await graphMessageTimes(
             client.users.cache.get(id) || { id, username: "somebody" },
-            usersData[id]
+            usersData[id].messageTimes
           ),
           name: "messageTimes.png",
+          contentType: "image/png",
+        },
+        {
+          attachment: await graphMessageTimes(
+            client.users.cache.get(id) || { id, username: "somebody" },
+            usersData[id].messageTimes.filter((d) => [0, 6].includes(new Date(d).getUTCDay()))
+          ),
+          name: "messageTimesWeekends.png",
+          contentType: "image/png",
+        },
+        {
+          attachment: await graphMessageTimes(
+            client.users.cache.get(id) || { id, username: "somebody" },
+            usersData[id].messageTimes.filter((d) => ![0, 6].includes(new Date(d).getUTCDay()))
+          ),
+          name: "messageTimesWeekdays.png",
           contentType: "image/png",
         },
       ],
@@ -72,27 +88,41 @@ client.on("messageCreate", async (message) => {
   if (message.content.startsWith("graph-presencify")) {
     await message.reply("it's p.graph now (plus you can specify a user id if you want)");
   }
+  if (message.content == "opt-presencify") {
+    await message.reply("it's p.opt now");
+  }
   for (const [id, user] of message.mentions.users) {
+    if (cooldowns[id] + 60 * 1000 > Date.now()) continue;
     const userData = usersData[id];
     if (!userData) continue;
-    if (cooldowns[id] + 60 * 1000 > Date.now()) continue;
-    const totalMessageCount = userData.messageTimes.length;
-    if (totalMessageCount < 24 * 16) continue;
     const currentHour = new Date().getUTCHours();
-    const messageCountForHour = userData.messageTimes.filter(
+    const relevantMessages = userData.messageTimes.filter(
+      (t) => [0, 6].includes(new Date(t).getDay()) == isWeekend
+    );
+    const messageCountForHour = relevantMessages.filter(
       (t) => new Date(t).getUTCHours() == currentHour
     ).length;
-    const minutesSinceLastMessage = Math.floor(
-      (new Date() - new Date(userData.messageTimes.at(-1))) / 60000
-    );
-    if (messageCountForHour < totalMessageCount / 48) {
+    if (messageCountForHour < relevantMessages.length / 48) {
+      const minutesSinceLastMessage = Math.floor(
+        (new Date() - new Date(userData.messageTimes.at(-1))) / 60000
+      );
       await message.reply({
         content:
-          `${user.username} usually doesn't talk in this hour. ` +
-          `(${totalMessageCount} total messages, ${messageCountForHour} total for this hour, ${minutesSinceLastMessage} minutes since last message)`,
+          user.username +
+          " usually doesn't talk in this hour on " +
+          (isWeekend ? "weekends" : "weekdays") +
+          ". (" +
+          relevantMessages.length +
+          " total messages on " +
+          (isWeekend ? "weekends" : "weekdays") +
+          ", " +
+          messageCountForHour +
+          " in this hour, " +
+          minutesSinceLastMessage +
+          " minutes since last message)",
         files: [
           {
-            attachment: await graphMessageTimes(user, userData),
+            attachment: await graphMessageTimes(user, relevantMessages),
             name: "messageTimes.png",
             contentType: "image/png",
           },
@@ -115,12 +145,12 @@ const calculateRespProb = (
     (timesResponded / totalTimesResponded + timesNotResponded / totalTimesNotResponded)
   );
 };
-const graphMessageTimes = async (user, userData) => {
+const graphMessageTimes = async (user, messageTimes) => {
   const hours = {};
   for (let i = 0; i < 24; i++) {
     hours[i] = 0;
   }
-  for (const messageTime of userData.messageTimes) {
+  for (const messageTime of messageTimes) {
     const hour = new Date(messageTime).getUTCHours();
     hours[hour]++;
   }
