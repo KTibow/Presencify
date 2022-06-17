@@ -21,143 +21,52 @@ const fetchJson = async (path, fallback) => {
     return fallback;
   }
 };
-Array.prototype.remove = function (value) {
-  const index = this.indexOf(value);
-  if (index == -1) throw new Error("Value not found");
-  this.splice(index, 1);
-};
-let cooldowns = {};
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
-  const optOut = await fetchJson("data/optOut.json", []);
-  // Let people opt out of the bot
-  if (message.content == "p.opt") {
-    if (optOut.includes(message.author.id)) {
-      optOut.remove(message.author.id);
-      await message.reply("You have opted in to the bot.");
-    } else {
-      optOut.push(message.author.id);
-      await message.reply(
-        "You have opted out of the bot.\n" +
-          "Please consider opting in again if you change your mind (just run the command again). " +
-          "After all, Presencify is [open source](https://github.com/KTibow/Presencify) and it collects a relatively small amount of data."
-      );
-    }
-    await fs.writeFile("data/optOut.json", JSON.stringify(optOut));
+  // 1. Log the message
+  const messageTimes = await fetchJson("data/messageTimes.json", {});
+  if (!messageTimes[message.author.id]) {
+    messageTimes[message.author.id] = [];
   }
-
-  const usersData = await fetchJson("data/users.json", {});
-  if (!usersData[message.author.id]) {
-    usersData[message.author.id] = { messageTimes: [] };
-  }
-  usersData[message.author.id].messageTimes.push(message.createdAt.getTime());
-  const isWeekend = [0, 6].includes(new Date().getUTCDay());
-  if (message.content.startsWith("p.graph")) {
-    const id = message.content.match(/[0-9]+/g)?.at(0) || message.author.id;
-    await message.channel.sendTyping();
-    await message.reply({
-      content: "overall, weekends, weekdays",
-      files: [
-        {
-          attachment: await graphMessageTimes(
-            client.users.cache.get(id) || { id, username: "somebody" },
-            usersData[id].messageTimes
-          ),
-          name: "messageTimes.png",
-          contentType: "image/png",
-        },
-        {
-          attachment: await graphMessageTimes(
-            client.users.cache.get(id) || { id, username: "somebody" },
-            usersData[id].messageTimes.filter((d) => [0, 6].includes(new Date(d).getUTCDay()))
-          ),
-          name: "messageTimesWeekends.png",
-          contentType: "image/png",
-        },
-        {
-          attachment: await graphMessageTimes(
-            client.users.cache.get(id) || { id, username: "somebody" },
-            usersData[id].messageTimes.filter((d) => ![0, 6].includes(new Date(d).getUTCDay()))
-          ),
-          name: "messageTimesWeekdays.png",
-          contentType: "image/png",
-        },
-      ],
-    });
-  }
-  if (message.content.startsWith("graph-presencify")) {
-    await message.reply("it's p.graph now (plus you can specify a user id if you want)");
-  }
-  if (message.content == "opt-presencify") {
-    await message.reply("it's p.opt now");
-  }
-  if (optOut.includes(message.author.id)) return;
+  messageTimes[message.author.id].push(message.createdAt.getTime());
+  await fs.writeFile("data/messageTimes.json", JSON.stringify(messageTimes));
+  return; // Presencify is in monitoring mode
+  // 2. Respond if we should
+  const userSettings = await fetchJson("data/userSettings.json", {});
+  const authorSettings = userSettings[message.author.id] || {};
+  const whenToReply = authorSettings.tellMeAboutOthers ?? -1;
   for (const [id, user] of message.mentions.users) {
-    if (cooldowns[id] + 60 * 1000 > Date.now()) continue;
-    if (optOut.includes(id)) continue;
-    const userData = usersData[id];
-    if (!userData) continue;
-    const currentHour = new Date().getUTCHours();
-    const relevantMessages = userData.messageTimes.filter(
-      (t) => [0, 6].includes(new Date(t).getDay()) == isWeekend
-    );
-    if (relevantMessages.length < 48 * 4) continue;
-    const messageCountForHour = relevantMessages.filter(
-      (t) => new Date(t).getUTCHours() == currentHour
-    ).length;
-    if (messageCountForHour < relevantMessages.length / 48) {
-      const minutesSinceLastMessage = Math.floor(
-        (new Date() - new Date(userData.messageTimes.at(-1))) / 60000
+    if (whenToReply == 0) continue;
+    else if (whenToReply == 1 && message.mentions.repliedUser.id == user) continue;
+    else if (userSettings[id]?.informOthersAboutMe === 0) continue;
+    const userMessageTimes = messageTimes[id] || [];
+    const userOffset = userSettings[id]?.timezone ?? 0;
+    // Filter the times to the period
+    const localDayOfWeek = (time) =>
+      Math.floor(
+        ((new Date(time).getTime() + userOffset * 60 * 60 * 1000) / (24 * 60 * 60 * 1000) + 4) % 7
       );
-      await message.reply({
-        content:
-          user.username +
-          " usually doesn't talk in this hour on " +
-          (isWeekend ? "weekends" : "weekdays") +
-          ". (" +
-          relevantMessages.length +
-          " total messages on " +
-          (isWeekend ? "weekends" : "weekdays") +
-          ", " +
-          messageCountForHour +
-          " in this hour, " +
-          minutesSinceLastMessage +
-          " minutes since last message)",
-        files: [
-          {
-            attachment: await graphMessageTimes(user, relevantMessages),
-            name: "messageTimes.png",
-            contentType: "image/png",
-          },
-        ],
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-      cooldowns[id] = Date.now();
+    const isWeekend = [0, 6].includes(localDayOfWeek(message.createdAt));
+    const relevantTimes = userMessageTimes.filter(
+      (time) => [0, 6].includes(localDayOfWeek(time)) == isWeekend
+    );
+    //if (relevantTimes.length < 480) continue; TODO: ADD THIS BEFORE PUSHING
+    // See if they're usually offline
+    const messagesByHour = {};
+    for (const time of relevantTimes) {
+      const hour = new Date(time).get;
+      if (!messagesByHour[hour]) messagesByHour[hour] = 0;
+      messagesByHour[hour]++;
     }
   }
-  await fs.writeFile("data/users.json", JSON.stringify(usersData));
 });
-const calculateRespProb = (
-  timesResponded,
-  totalTimesResponded,
-  timesNotResponded,
-  totalTimesNotResponded
-) => {
-  return (
-    timesResponded /
-    totalTimesResponded /
-    (timesResponded / totalTimesResponded + timesNotResponded / totalTimesNotResponded)
-  );
-};
-const graphMessageTimes = async (user, messageTimes) => {
+const graphMessageTimes = async (messageTimes, title, offset) => {
   const hours = {};
   for (let i = 0; i < 24; i++) {
     hours[i] = 0;
   }
   for (const messageTime of messageTimes) {
-    const hour = new Date(messageTime).getUTCHours();
+    const hour = new Date(messageTime).getUTCHours() + offset;
     hours[hour]++;
   }
   // Print it out
@@ -184,8 +93,8 @@ const graphMessageTimes = async (user, messageTimes) => {
         {
           label: "Messages",
           data: Object.values(hours),
-          backgroundColor: "rgba(255, 99, 132, 0.2)",
-          borderColor: "rgba(255, 99, 132, 1)",
+          backgroundColor: "rgba(79, 240, 227, 0.2)",
+          borderColor: "rgba(79, 240, 227, 0.5)",
         },
       ],
     },
@@ -201,7 +110,7 @@ const graphMessageTimes = async (user, messageTimes) => {
       plugins: {
         title: {
           display: true,
-          text: `${user.username}'s messages/hour (UTC)`,
+          text: title,
         },
       },
     },
